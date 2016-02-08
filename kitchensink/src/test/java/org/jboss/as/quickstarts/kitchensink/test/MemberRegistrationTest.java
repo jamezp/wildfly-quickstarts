@@ -18,12 +18,19 @@ package org.jboss.as.quickstarts.kitchensink.test;
 
 import static org.junit.Assert.assertNotNull;
 
+import java.net.URL;
 import java.util.logging.Logger;
 
 import javax.inject.Inject;
 
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.HttpClientBuilder;
 import org.jboss.arquillian.container.test.api.Deployment;
+import org.jboss.arquillian.container.test.api.RunAsClient;
 import org.jboss.arquillian.junit.Arquillian;
+import org.jboss.arquillian.test.api.ArquillianResource;
 import org.jboss.as.quickstarts.kitchensink.model.Member;
 import org.jboss.as.quickstarts.kitchensink.service.MemberRegistration;
 import org.jboss.as.quickstarts.kitchensink.util.Resources;
@@ -31,6 +38,7 @@ import org.jboss.shrinkwrap.api.Archive;
 import org.jboss.shrinkwrap.api.ShrinkWrap;
 import org.jboss.shrinkwrap.api.asset.EmptyAsset;
 import org.jboss.shrinkwrap.api.spec.WebArchive;
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -40,11 +48,15 @@ public class MemberRegistrationTest {
     public static Archive<?> createTestArchive() {
         return ShrinkWrap.create(WebArchive.class, "test.war")
             .addClasses(Member.class, MemberRegistration.class, Resources.class)
+                .addPackages(true, "org.apache.http")
             .addAsResource("META-INF/test-persistence.xml", "META-INF/persistence.xml")
             .addAsWebInfResource(EmptyAsset.INSTANCE, "beans.xml")
             // Deploy our test datasource
             .addAsWebInfResource("test-ds.xml");
     }
+
+    @ArquillianResource
+    private URL url;
 
     @Inject
     MemberRegistration memberRegistration;
@@ -61,6 +73,29 @@ public class MemberRegistrationTest {
         memberRegistration.register(newMember);
         assertNotNull(newMember.getId());
         log.info(newMember.getName() + " was persisted with id " + newMember.getId());
+    }
+
+    @Test
+    //@RunAsClient
+    public void testPing() throws Exception {
+        System.out.println(url);
+        final HttpClient client = HttpClientBuilder.create()
+                .build();
+        final String target = url.toExternalForm() + "index.jsf";
+        System.out.println(target);
+        final HttpResponse response = client.execute(new HttpGet(target));
+
+        System.out.println("Response Code : "
+                + response.getStatusLine().getStatusCode());
+
+        /*BufferedReader rd = new BufferedReader(
+                new InputStreamReader(response.getEntity().getContent()));
+
+        StringBuffer result = new StringBuffer();
+        String line = "";
+        while ((line = rd.readLine()) != null) {
+            result.append(line);
+        }*/
     }
 
 }

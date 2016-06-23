@@ -17,7 +17,7 @@
 package org.jboss.as.quickstarts.kitchensink.model;
 
 import java.io.Serializable;
-
+import java.time.ZonedDateTime;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
@@ -59,6 +59,9 @@ public class Member implements Serializable {
     @Column(name = "phone_number")
     private String phoneNumber;
 
+    @Column(name = "date_added")
+    private ZonedDateTime addedDate;
+
     public Long getId() {
         return id;
     }
@@ -68,6 +71,7 @@ public class Member implements Serializable {
     }
 
     public String getName() {
+        addedDate = ZonedDateTime.now();
         return name;
     }
 
@@ -89,5 +93,13 @@ public class Member implements Serializable {
 
     public void setPhoneNumber(String phoneNumber) {
         this.phoneNumber = phoneNumber;
+    }
+
+    public ZonedDateTime getAddedDate() {
+        return addedDate;
+    }
+
+    public void setAddedDate(final ZonedDateTime addedDate) {
+        this.addedDate = addedDate;
     }
 }

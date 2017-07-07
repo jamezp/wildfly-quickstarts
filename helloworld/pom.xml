@@ -63,6 +63,35 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- Import the JSON API -->
+        <dependency>
+            <groupId>org.jboss.spec.javax.json</groupId>
+            <artifactId>jboss-json-api_1.0_spec</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Import the controller client for configuring logging -->
+        <dependency>
+            <groupId>org.wildfly.core</groupId>
+            <artifactId>wildfly-controller-client</artifactId>
+            <version>3.0.0.Beta27</version>
+            <scope>provided</scope>
+        </dependency>
+
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <artifactId>maven-war-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifestEntries>
+                            <Dependencies>org.jboss.as.controller-client,org.jboss.dmr</Dependencies>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>

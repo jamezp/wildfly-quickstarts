@@ -16,15 +16,18 @@
  */
 package org.jboss.as.quickstarts.helloworld;
 
-import java.io.IOException;
-import java.io.PrintWriter;
-
+import javax.annotation.Resource;
+import javax.enterprise.concurrent.ManagedExecutorService;
+import javax.enterprise.concurrent.ManagedScheduledExecutorService;
 import javax.inject.Inject;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.concurrent.TimeUnit;
 
 /**
  * <p>
@@ -50,14 +53,38 @@ public class HelloWorldServlet extends HttpServlet {
     @Inject
     HelloService helloService;
 
+    @Resource
+    private ManagedExecutorService managedExecutorService;
+
+    @Resource
+    private ManagedScheduledExecutorService managedScheduledExecutorService;
+
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         resp.setContentType("text/html");
-        PrintWriter writer = resp.getWriter();
-        writer.println(PAGE_HEADER);
-        writer.println("<h1>" + helloService.createHelloMessage("World") + "</h1>");
-        writer.println(PAGE_FOOTER);
-        writer.close();
+        final PrintWriter writer = resp.getWriter();
+        final HelloService helloService = this.helloService;
+        try {
+            managedExecutorService.submit(new Runnable() {
+                @Override
+                public void run() {
+                    writer.println(PAGE_HEADER);
+                    writer.println("<h1>" + helloService.createHelloMessage("Browser") + "</h1>");
+                    writer.println(PAGE_FOOTER);
+                    writer.close();
+                }
+            }).get();
+        } catch (Throwable e) {
+            throw new ServletException(e);
+        }
+        for (int i = 1; i<6; i++) {
+            final int j = i;
+            managedScheduledExecutorService.schedule(new Runnable() {
+                @Override
+                public void run() {
+                    System.out.print(helloService.createHelloMessage("Console") + " " + j);
+                }
+            }, 1, TimeUnit.SECONDS);
+        }
     }
-
 }

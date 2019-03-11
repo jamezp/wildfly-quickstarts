@@ -16,6 +16,13 @@
  */
 package org.jboss.as.quickstarts.helloworld;
 
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.time.ZonedDateTime;
+import java.util.Queue;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Resource;
 import javax.enterprise.concurrent.ManagedExecutorService;
 import javax.enterprise.concurrent.ManagedScheduledExecutorService;
@@ -25,9 +32,6 @@ import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.concurrent.TimeUnit;
 
 /**
  * <p>
@@ -36,11 +40,10 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>
  * The servlet is registered and mapped to /HelloServlet using the {@linkplain WebServlet
- * @HttpServlet}. The {@link HelloService} is injected by CDI.
- * </p>
  *
  * @author Pete Muir
- *
+ * @HttpServlet}. The {@link HelloService} is injected by CDI.
+ * </p>
  */
 @SuppressWarnings("serial")
 @WebServlet("/HelloWorld")
@@ -58,6 +61,16 @@ public class HelloWorldServlet extends HttpServlet {
 
     @Resource
     private ManagedScheduledExecutorService managedScheduledExecutorService;
+
+    private final Queue<Future<?>> scheduledTasks = new LinkedBlockingDeque<>();
+
+    @Override
+    public void destroy() {
+        Future<?> future;
+        while ((future = scheduledTasks.poll()) != null) {
+            future.cancel(true);
+        }
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -77,14 +90,18 @@ public class HelloWorldServlet extends HttpServlet {
         } catch (Throwable e) {
             throw new ServletException(e);
         }
-        for (int i = 1; i<6; i++) {
+        for (int i = 1; i < 6; i++) {
             final int j = i;
             managedScheduledExecutorService.schedule(new Runnable() {
                 @Override
                 public void run() {
-                    System.out.print(helloService.createHelloMessage("Console") + " " + j);
+                    System.out.println(helloService.createHelloMessage("Console") + " " + j);
                 }
             }, 1, TimeUnit.SECONDS);
         }
+
+        scheduledTasks.add(managedScheduledExecutorService.scheduleAtFixedRate(() -> System.out.printf("Ran at %s%n", ZonedDateTime.now()),
+                1, 3, TimeUnit.SECONDS));
+
     }
 }

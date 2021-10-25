@@ -17,6 +17,7 @@
 package org.wildfly.quickstarts.microprofile.reactive.messaging;
 
 import javax.inject.Inject;
+import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -40,6 +41,7 @@ public class UserResource {
 
     @POST
     @Path("{value}")
+    @Consumes(MediaType.TEXT_PLAIN)
     public Response send(@PathParam("value") String value) {
         System.out.println(" -> User value " + value);
         bean.send(value);
@@ -47,6 +49,7 @@ public class UserResource {
     }
 
     @GET
+    @Produces(MediaType.SERVER_SENT_EVENTS)
     @Stream
     public Publisher<String> get() {
         System.out.println("===> UR GET " + this);

@@ -23,21 +23,17 @@
 package org.wildfly.quickstarts.microprofile.reactive.messaging.test;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.eclipse.microprofile.rest.client.RestClientBuilder;
 import org.jboss.arquillian.container.test.api.Deployment;
 import org.jboss.arquillian.container.test.api.RunAsClient;
 import org.jboss.arquillian.junit.Arquillian;
@@ -49,6 +45,8 @@ import org.jboss.shrinkwrap.api.spec.WebArchive;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 import org.wildfly.quickstarts.microprofile.reactive.messaging.UserMessagingBean;
 
 /**
@@ -65,8 +63,6 @@ public class ReactiveMessagingKafkaIT {
     private final CloseableHttpClient httpClient = HttpClientBuilder.create().build();
 
     private static final long TIMEOUT = 30000;
-
-    private ExecutorService executorService = Executors.newFixedThreadPool(3);
 
     @Deployment
     public static WebArchive getDeployment() {
@@ -92,18 +88,21 @@ public class ReactiveMessagingKafkaIT {
 
     @Test
     public void testUserApi() throws Throwable {
-        String userUrl = url.toExternalForm() + "user";
-        ReadAsynchronousTask taskA = new ReadAsynchronousTask(httpClient, userUrl);
-        executorService.submit(taskA);
-//        ReadAsynchronousTask taskB = new ReadAsynchronousTask(httpClient, userUrl);
-//        executorService.submit(taskB);
+        final UserClient client = RestClientBuilder.newBuilder()
+                .baseUrl(url)
+                .build(UserClient.class);
+
+        final ListSubscriber taskA = new ListSubscriber(new CountDownLatch(3));
+        client.get().subscribe(taskA);
+        final ListSubscriber taskB = new ListSubscriber(new CountDownLatch(3));
+        client.get().subscribe(taskB);
+
+        client.send("one");
+        client.send("two");
+        client.send("three");
 
         taskA.latch.await();
-//        taskB.latch.await();
-
-        post(userUrl + "/one");
-        post(userUrl + "/two");
-        post(userUrl + "/three");
+        taskB.latch.await();
 
         long end = System.currentTimeMillis() + TIMEOUT;
         while (System.currentTimeMillis() < end) {
@@ -114,21 +113,13 @@ public class ReactiveMessagingKafkaIT {
         }
 
         checkAsynchTask(taskA, "one", "two", "three");
-//        checkAsynchTask(taskB, "one", "two", "three");
+        checkAsynchTask(taskB, "one", "two", "three");
     }
 
-    private void checkAsynchTask(ReadAsynchronousTask task, String...values) {
+    private void checkAsynchTask(ListSubscriber task, String... values) {
         Assert.assertEquals(3, task.lines.size());
         for (int i = 0; i < values.length; i++) {
             Assert.assertTrue("Line " + i + ": " + task.lines.get(i), task.lines.get(i).contains(values[i]));
-        }
-    }
-
-    private void post(String url) throws Exception {
-        HttpPost post = new HttpPost(url);
-        try (CloseableHttpResponse httpResponse = httpClient.execute(post)) {
-            String sc = String.valueOf(httpResponse.getStatusLine().getStatusCode());
-            Assert.assertTrue(sc, sc.startsWith("2"));
         }
     }
 
@@ -162,42 +153,34 @@ public class ReactiveMessagingKafkaIT {
         return true;
     }
 
-    private static class ReadAsynchronousTask implements Runnable {
-        private CloseableHttpClient httpClient;
-        private final String url;
-        private final CountDownLatch latch = new CountDownLatch(1);
-        private List<String> lines = Collections.synchronizedList(new ArrayList<>());
+    private static class ListSubscriber implements Subscriber<String> {
+        private final CountDownLatch latch;
+        final List<String> lines;
 
-        public ReadAsynchronousTask(CloseableHttpClient httpClient, String url) {
-            this.httpClient = httpClient;
-            this.url = url;
+        private ListSubscriber(final CountDownLatch latch) {
+            this.latch = latch;
+            lines = new ArrayList<>();
         }
 
         @Override
-        public void run() {
-            HttpGet httpGet = new HttpGet(url);
-            try (CloseableHttpResponse httpResponse = httpClient.execute(httpGet)) {
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(httpResponse.getEntity().getContent()))) {
-                    latch.countDown();
+        public void onSubscribe(final Subscription s) {
+            s.request(latch.getCount());
+        }
 
-                    String line = reader.readLine();
-                    while (line != null) {
-                        Thread.sleep(100);
-                        if (line.trim().length() > 0) {
-                            lines.add(line);
-                        }
-                        line = reader.readLine();
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+        @Override
+        public void onNext(final String s) {
+            lines.add(s);
+            latch.countDown();
+        }
 
-            } catch (InterruptedException e) {
-            } catch (IOException e) {
-                e.printStackTrace();
-            } finally {
-                latch.countDown();
-            }
+        @Override
+        public void onError(final Throwable t) {
+
+        }
+
+        @Override
+        public void onComplete() {
+
         }
     }
 }
